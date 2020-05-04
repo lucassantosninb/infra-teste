@@ -1,0 +1,81 @@
+version: '3.7'
+
+services:
+
+  mysql:
+    image: mysql:8.0.20
+    ports:
+      - 3306:3306
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+      - ./mysql/db-init.sql:/docker-entrypoint-initdb.d/db-init.sql
+    environment:
+      MYSQL_ROOT_PASSWORD: "$MYSQL_ROOT_PASSWORD"
+      MYSQL_USER: "$MYSQL_USER"
+      MYSQL_PASSWORD: "$MYSQL_PASSWORD"
+      MYSQL_DATABASE: "$MYSQL_DATABASE" 
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "--host=localhost", "--password=$MYSQL_ROOT_PASSWORD"]
+      timeout: 20s
+      retries: 10
+    networks:
+      - infra
+    # logging:
+    #   driver: "gelf"
+    #   options:
+    #     gelf-address: "udp://graylog:12201"
+    #     tag: "mysql"
+
+  mongo:
+    image: mongo:3
+    volumes:
+      - ./mongo/data/db:/data/db
+    networks:
+      - infra
+    # logging:
+    #   driver: "gelf"
+    #   options:
+    #     gelf-address: "udp://graylog:12201"
+    #     tag: "mongo"
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.8.5
+    volumes:
+      - ./elasticsearch/data:/usr/share/elasticsearch/data
+    environment:
+      http.host: "0.0.0.0"
+      transport.host: localhost
+      network.host: "0.0.0.0"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    networks:
+      - infra
+    # logging:
+    #   driver: "gelf"
+    #   options:
+    #     gelf-address: "udp://graylog:12201"
+    #     tag: "elasticsearch"
+
+  graylog:
+    image: graylog/graylog:3.2
+    user: 1100:1000
+    ports:
+      - 9000:9000
+      - 1514:1514
+      - 1514:1514/udp
+      - 12201:12201
+      - 12201:12201/udp
+    volumes:
+      - ./graylog/data/journal:/usr/share/graylog/data/journal
+    environment:
+      GRAYLOG_PASSWORD_SECRET: "$GRAYLOG_PASSWORD_SECRET"
+      GRAYLOG_ROOT_PASSWORD_SHA2: "$GRAYLOG_ROOT_PASSWORD_SHA2"
+      GRAYLOG_HTTP_EXTERNAL_URI: http://127.0.0.1:9000/
+    networks:
+      - infra
+    depends_on:
+      - mongo
+      - elasticsearch
+
+networks:
+  infra:

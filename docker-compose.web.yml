@@ -1,0 +1,61 @@
+version: '3.7'
+
+x-app: &app
+  build:
+    context: ./flask_app
+  networks:
+    - infra
+
+services:
+
+  balancer:
+    image: nginx:latest
+    ports:
+      - 80:80
+    volumes:
+      - ./nginx/balancer.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - infra
+    depends_on:
+      - app1
+      - app2
+    # logging:
+    #   driver: "gelf"
+    #   options:
+    #     gelf-address: "udp://graylog:12201"
+    #     tag: "nginx"
+
+  app1:
+    <<: *app
+    ports:
+      - 5001:5000
+    # logging:
+    #   driver: "gelf"
+    #   options:
+    #     gelf-address: "udp://graylog:12201"
+    #     tag: "app1"
+  
+  app2:
+    <<: *app
+    ports:
+      - 5002:5000
+    # logging:
+    #   driver: "gelf"
+    #   options:
+    #     gelf-address: "udp://graylog:12201"
+    #     tag: "app2"
+
+  logspout:
+    image: "micahhausler/logspout:gelf"
+    ports:
+      - "8000:80"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    environment:
+      LOGSPOUT: ignore
+    command: "gelf://graylog:12201"
+    networks:
+      - infra
+
+networks:
+  infra:
